@@ -1,0 +1,30 @@
+-------------------------------------关系代数----------------------------------
+-------------------并和差运算------------------
+对于所有的并和差运算，要使其有意义，必须满足以下条件：
+1、关系r和s必须是同元的，也就是属性数目必须相同
+2、对所有的i，r的第i个属性必须和s的第i个属性的域相同
+-----------------笛卡尔积--------------
+如果有相同的属性名同时出现在r1和r2上,则找到属性所在的关系并进行标志
+如：
+r=instructor x teaches = (instructor.ID, instructor.name, instructor.dept_name, instructor.salary, teaches.ID, teaches.course_id, teaches.sec_id, teaches.semester, teaches.year)
+=(instructor.ID, name, dept_name, salary, teaches.ID, course_id,sec_id, semester, year)
+一般地说，如果有关系r1(R1)和r2(R2)，则关系r1 x r2 的模式是R1和R2串接而成的。关系R中包含所有满足以下条件的元组t：r1中存在元组t1且r2中存在元组t2,使得t[R1]=t1[R1]且t[R2]=t2[R2]
+---------------自然连接----------------
+属性的顺序：排在最前面的是两个关系模式的相同属性，其次是只属于第一个关系模式的属性，最后是只属于第二个关系模式的属性
+自然连接：去掉重复属性
+自然连接是可结合的：instructor natural join teaches natural join course == (instructor natural join (teaches natural join course)) == ((instructor natural join teaches) natural join course) 
+----------------外连接---------------
+左外连接：所有来自左侧关系的信息在左外连接中都得到保留
+右外连接：所有来自右侧关系的信息在右外连接中都得到保留
+---------------------------------扩展的关系代数--------------------------------
+广义投影：允许在投影中使用算术运算和字符串运算
+聚集：
+    如果想用distinct，那么加到函数名之后即可，如：count_distinct
+    求出每个系的平均工资:dept_name G avg(salary) (instructor) 相当于 select dept_name,avg(salary) from instructor group by dept_name
+多重集关系代数：
+    假设关系r1的模式是(A,B)，r2的模式是(C)，那么它们是下面的多重集：
+	r1={(1,a),(2,a)},r2={(2),(3),(3)}
+    那么πB(r1)就得到{(a),(a)}，而πB(r1) x r2的结果是{(a,2),(a,2),(a,3),(a,3),(a,3),(a,3)}
+    对于聚集运算来说，多重集下的定义没有什么变化
+如果需要进行更新操作，比如将第十号部门的所有员工的工资乘以1.5，就需要进行重新赋值操作，
+将部门不等于10的员工抽出来作为A，将部门为10的员工抽出来并选择salary*1.5作为B，然后emp=A∪B

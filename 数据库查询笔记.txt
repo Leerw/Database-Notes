@@ -1,0 +1,179 @@
+---------------------------------------出现在where子句中的子查询-----------------------------------
+SELECT A1，A2...AN
+FROM R1，R2，...,RN
+WHERE EXPRESSION(SUBQUERY)
+
+select sID, sName
+from Student
+where sID in (select SID form Apply where major = 'CS')
+(对于每个student in Student 都去子查询一遍是不是在申请了CS专业的学生集合里，因为Student中没有
+重复元组，所以查询到的最终结果也没有重复元组)
+||
+select distinct Student.sID,sName
+from Student, Apply
+where Student.sID = Apply.sID and major = 'CS'
+(如果不加distinct的话，可能会出现重复元组，因为可能有学生申请了别的大学的CS专业)
+
+select cName, state
+from  College C1
+where exists (select * from College C2
+			  where C2.state = C1.state)
+(对于每一个College的大学，检查是否存在其他大学和它在同一个state里，但是这条语句会出现错误，
+因为这条语句的子查询会检查一个大学和它本身是否满足，显然是满足的，那么每个大学都会出现在最终的查询结果中)
+select cName, state
+from College C1
+where exists (select * from College C2
+			  where C2.state = C1.state
+				and C2.cName <> C1,cName)
+select cName
+from College C1
+where not exists (select *
+				  from College C2
+				  where C2.enrollment > C1.enrollment)
+(查找College里面入学率最高的大学)
+
+select GPA
+from Student S1
+where not exists (select * from Student S2
+				  where S2.GAP > S1.GAP)
+查询GPA最大的学生
+select distinct S1.sName, GPA
+from Student S1, Student S2
+where S1.GPA > S2.GAP
+这是错误的，这其实查询的是只要存在比S1的GPA小的学生那就选中，其实是只排除掉了GPA最小的那个学生
+改为：
+select sName, GAP
+from Student S
+where GPA >= all(select GAP from Student)
+然而
+select sName,GAP
+from Student S1
+where GPA > all(select GAP from Student S2
+			    where S2.GAP <> S1.GAP)
+找出比任何和该学生GPA不同的学生的GAP还要大的学生，也就是找出GPA最大的学生，但是当所有人的GPA都一样就会返回空集，而不是正确德返回所有人都一样的GPA
+
+select cName
+from College C1
+where enrollment > all(select enrollment from College C2
+					   where C2.cName <> C1.sName)
+这就正确了，因为enrollment是unique的
+等价于
+select cName
+from College C1
+where not enrollment <= any (select enrollment from College C2
+							 where C2.cName <> C1.cName)
+---------------------------------------------------------------------------------------------------
+
+unique:用于测试在一个子查询中是否存在重复元组
+找出所有在2009年最多开设一次的课程
+select T.course_id
+from course as T
+where unique (select R.course_id
+				from section as R
+				where T.course_id = R.course_id and year = 2009);
+				
+等价于
+select T.course_id
+from course as T
+where 1>=(select COUNT(R.course_id)
+          from section R
+		  where T.course_id=R.course_id and year = 2009);
+找出所有在2009年至少开设两次的课程
+select T.course_id
+from course as T
+where not unique (select R.course_id
+                  from section as R
+				  where T.course_id=R.course_id
+				  and year = 2009)
+---------------------------------------------------------------------------------------------------
+
+什么是相关子查询？
+1、从外层查询中取出一个元组，将元组相关列的值传给内层查询
+2、执行内层查询，得到子查询操作的值
+3、外查询根据子查询返回的结果或结果集得到满足条件的元组
+4、然后外层查询取出下一个元组重复做步骤1-3，知道外层的元组全部处理完毕
+用庸俗的话将，任何脱离外层查询能单独运行的就是不相关子查询，反之则为相关子查询
+
+那什么是标量子查询呢？
+SQL允许子查询出现在返回单个值的表达式能够出现在任何地方，只要该子查询只返回包含单个属性的
+单个元组（如果把关系实例比作是一个拥有行列的表，那么就是一个格子），这样的子查询就是标量子查询
+比如
+select dept_name,
+	(select count(*)
+	from instructor
+	where department.dept_name = instructor.dept_name)
+	as num_instructors
+from department;
+标量子查询可以出现在select from where 子句中，也可以不适用聚集函数来定义标量子查询，在编译时并非总能
+判断一个子查询返回的结果中是否有多个元组，如果在子查询被执行后其结果不止一个元组或者不止一个属性，
+那么将会产生一个运行时错误
+
+--------------------------------------------视图---------------------------------------------------
+视图实际上就是虚关系，虚关系就是并不预先计算并存储数据，而是在使用虚关系的时候才通过执行查询被计算出来
+视图：任何像这种不是逻辑模型的一部分，但是作为徐关系对用户苦尖的关系称为视图
+创建视图：create view v as <query expression>
+视图是在需要的时候才被创建的
+当我们定义了一个视图的时候，数据库存储视图的定义本身，而不存储定义该视图的查询表达式的结果
+视图可更新：
+	from子句中只有一个数据库关系
+	select子句中只包含关系的属性名，不包含任何表达式、聚集或distint生命
+	任何没有出现select子句中的属性可以取空值，即这些属性上没有not null约束，也不构成主码的一部分
+	查询中不包含grouop by和having子句
+单个关系上的约束：
+	not null
+	unique
+	check(<谓词>)
+完整性约束的延时检查:set constraints constraint-list deferred
+check子句中为谓词可以使包含子查询的任意谓词，如果一个数据库实现支持在check子句中出现子查询
+	check(time_slot_id in (select time_slot_id from time_slot))
+	这个条件不仅在section中插入或修改时需要检测，同时在time_slot中插入或修改时也需要检测
+断言：create assertion <assertion-name> check<predicate>
+	对于student关系中的每个元组，它在属性tot_cred上的取值必须等于该生所成功修完课程的学分总和
+	not exists X such that not P(x) == for all X,P(x)
+	create assertion credits_constraint check
+		(not exists (select ID 
+				     from student
+					 where tot_cred <> (select sum(credits)
+										from takes join course
+										where student.ID = takes.ID
+										and grade is not null and grade <> 'F')))
+
+---------------------------------------------数据库的修改----------------------------------------
+删除：
+    只能删除整个元组而不能只删除某些属性上的值
+    delete from r where P;
+    delete命令只能用于一个关系，如果我们想从多个关系中删除元组，必须在每个关系上用一条delete命令
+    delete from instructor
+    where salary < (select avg(salary) from instructor);
+插入：
+    可以指定待插入的元组，或者写一条查询语句来生成待插入的元组集合
+    insert into course
+    values('CS-437','Database Systems','Comp.Sci',4); 在此例中，元组属性的排列顺序必须和关系模式中属性的排列顺序一样
+    insert into course(course_id, title, dept_name, credits) values('CS-437','Database Systems','Comp.Sci',4);
+    insert into course(course_id, title, credits, dept_name) values('CS-437','Database Systems',4,'Comp.Sci');
+    可以在查询结果的基础上插入元组（想让music系每个修满144学分的学生成为music教师，其工资为18000美元）
+	insert into instructor
+	    select ID, name, dept_name, 18000
+            from student
+            where dept_name = 'Music' and tot_cred = 144;
+更新：
+    update instructor set salary = salary * 1.05
+    update instructor set salary = salary * 1.05 where salary < 7000
+    update instructor set salary = salary * 1.05 where salary < (select avg(salary) from instructor)
+    --1
+    update instructor set salary = salary * 1.03 where salary > 10000
+    --2
+    update instructor set salary = salary * 1.05 where salary <= 10000
+    上面两条语句的执行顺序特别重要，因为如果第二条先执行第一条后执行的话，那么少于10000的先变成原来的1.05，然后可能现在已经超过了10000，在第二条语句中满足条件又增长为了1.08
+    case:
+	update instructor set salary = case
+				     when salary < 10000 then salary * 1.05
+                                     else salary * 1.03
+                              end
+    标量子查询用在set子句中：update student S
+                            set tot_cred = (
+                                select sum(credits)
+                                from takes natural join course
+                                when S.ID = takes.ID and takes.grade <> 'F' and takes.grade is not null);
+
+    
